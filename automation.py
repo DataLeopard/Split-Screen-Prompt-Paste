@@ -1,8 +1,10 @@
 """Automation module — pastes screenshot into the target prompt and submits."""
 
 import io
+import os
 import time
 import logging
+import tempfile
 
 import pyautogui
 import win32clipboard
@@ -18,12 +20,21 @@ logger = logging.getLogger(__name__)
 pyautogui.FAILSAFE = True  # move mouse to corner to abort
 pyautogui.PAUSE = 0.05
 
+# Persistent temp directory for screenshots
+_TEMP_DIR = os.path.join(tempfile.gettempdir(), "sspp_screenshots")
+os.makedirs(_TEMP_DIR, exist_ok=True)
+
+
+def save_screenshot_to_file(image: Image.Image) -> str:
+    """Save screenshot as a PNG file and return the path."""
+    path = os.path.join(_TEMP_DIR, "latest_capture.png")
+    image.convert("RGB").save(path, "PNG")
+    logger.debug(f"Screenshot saved to {path}")
+    return path
+
 
 def copy_image_to_clipboard_png(image: Image.Image):
-    """Copy a PIL Image to the Windows clipboard as PNG data.
-
-    Web apps (Gemini, ChatGPT) prefer PNG over raw BMP for image paste.
-    """
+    """Copy a PIL Image to the Windows clipboard as PNG + DIB."""
     png_buf = io.BytesIO()
     image.convert("RGB").save(png_buf, "PNG")
     png_data = png_buf.getvalue()
@@ -41,15 +52,38 @@ def copy_image_to_clipboard_png(image: Image.Image):
     win32clipboard.SetClipboardData(CF_PNG, png_data)
     win32clipboard.SetClipboardData(win32clipboard.CF_DIB, bmp_data)
     win32clipboard.CloseClipboard()
-
     logger.debug("Image copied to clipboard (PNG + DIB)")
 
 
-def find_browser_window(title_keywords=None):
-    """Find a browser window whose title contains any of the keywords.
+def copy_file_to_clipboard(filepath: str):
+    """Copy a file path to the clipboard so Ctrl+V pastes the file.
 
-    Returns the hwnd or None.
+    This is what Windows Explorer uses — web apps see it as a file drop.
     """
+    import struct
+    import ctypes
+
+    # CF_HDROP format
+    filepath_w = filepath + '\0'
+    filepath_bytes = filepath_w.encode('utf-16-le')
+
+    # DROPFILES structure: 20 bytes header + file paths + double null
+    fmt = 'IIIII'
+    header_size = struct.calcsize(fmt)
+    # pFiles offset, pt.x, pt.y, fNC, fWide(=1 for unicode)
+    header = struct.pack(fmt, header_size, 0, 0, 0, 1)
+    data = header + filepath_bytes + b'\0\0'
+
+    CF_HDROP = 15
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(CF_HDROP, data)
+    win32clipboard.CloseClipboard()
+    logger.debug(f"File path copied to clipboard as CF_HDROP: {filepath}")
+
+
+def find_browser_window(title_keywords=None):
+    """Find a browser window whose title contains any of the keywords."""
     if title_keywords is None:
         title_keywords = config.BROWSER_TITLE_KEYWORDS
 
@@ -72,25 +106,17 @@ def find_browser_window(title_keywords=None):
 
 
 def focus_browser_window():
-    """Find and bring the target browser window to foreground, then click the prompt."""
+    """Find and bring the target browser window to foreground."""
     hwnd = find_browser_window()
     if hwnd:
         try:
-            # Restore if minimized
             if win32gui.IsIconic(hwnd):
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            # Bring to front
             win32gui.SetForegroundWindow(hwnd)
             time.sleep(0.3)
             logger.debug("Browser window focused")
         except Exception as e:
             logger.warning(f"Could not focus browser: {e}")
-
-    # Now click the prompt input area
-    click_paste_area()
-    time.sleep(0.3)
-    # Click again to make sure cursor is in the text field
-    click_paste_area()
 
 
 def _coords_in_paste_zone(x_ratio, y_ratio):
@@ -115,32 +141,93 @@ def click_submit_button():
     logger.debug(f"Clicked submit button at ({x}, {y})")
 
 
+def click_attach_button():
+    """Click the attach/upload (+) button in the paste zone."""
+    x, y = _coords_in_paste_zone(config.ATTACH_BUTTON_X_RATIO, config.ATTACH_BUTTON_Y_RATIO)
+    pyautogui.click(x, y)
+    logger.debug(f"Clicked attach button at ({x}, {y})")
+
+
+def paste_via_file_upload(screenshot: Image.Image):
+    """Upload screenshot via the file dialog (attach button > file picker)."""
+    # Save screenshot to temp file
+    filepath = save_screenshot_to_file(screenshot)
+
+    # Focus browser
+    focus_browser_window()
+    time.sleep(0.3)
+
+    # Click the attach / "+" button
+    click_attach_button()
+    time.sleep(1.0)
+
+    # The file dialog should open — type the file path and press Enter
+    # First, select the filename bar (it should already be focused)
+    time.sleep(0.5)
+    pyautogui.hotkey("ctrl", "l")  # focus the path bar in file dialog
+    time.sleep(0.3)
+    pyautogui.typewrite(filepath.replace("/", "\\"), interval=0.02)
+    time.sleep(0.3)
+    pyautogui.press("enter")
+    time.sleep(1.5)  # wait for file to upload/attach
+
+    logger.info(f"File uploaded via dialog: {filepath}")
+
+
+def paste_via_clipboard(screenshot: Image.Image):
+    """Paste screenshot via clipboard Ctrl+V."""
+    # Copy to clipboard first
+    copy_image_to_clipboard_png(screenshot)
+
+    # Focus browser and click prompt
+    focus_browser_window()
+    time.sleep(0.3)
+    click_paste_area()
+    time.sleep(0.3)
+    click_paste_area()
+    time.sleep(0.3)
+
+    # Paste
+    pyautogui.hotkey("ctrl", "v")
+    logger.debug("Pasted from clipboard via Ctrl+V")
+
+
+def paste_via_file_drop(screenshot: Image.Image):
+    """Copy file to clipboard as CF_HDROP then Ctrl+V — like dragging a file."""
+    filepath = save_screenshot_to_file(screenshot)
+    copy_file_to_clipboard(filepath)
+
+    focus_browser_window()
+    time.sleep(0.3)
+    click_paste_area()
+    time.sleep(0.3)
+
+    pyautogui.hotkey("ctrl", "v")
+    logger.debug("Pasted file via CF_HDROP clipboard")
+
+
 def paste_and_submit(screenshot: Image.Image):
     """
     Full automation sequence:
-    1. Copy screenshot to clipboard as PNG
-    2. Focus the browser window and click the prompt
-    3. Ctrl+V to paste
-    4. Wait for image to render, then submit
+    1. Attach/paste the screenshot
+    2. Wait for it to load
+    3. Submit
     """
     logger.info("Starting paste-and-submit sequence")
 
-    # Step 1: copy image to clipboard FIRST (before any window switching)
-    copy_image_to_clipboard_png(screenshot)
+    paste_method = config.PASTE_METHOD
 
-    # Step 2: focus the browser and click the prompt input
-    time.sleep(config.CLICK_DELAY)
-    focus_browser_window()
-    time.sleep(0.5)
+    if paste_method == "file_upload":
+        paste_via_file_upload(screenshot)
+    elif paste_method == "file_drop":
+        paste_via_file_drop(screenshot)
+    else:  # "clipboard"
+        paste_via_clipboard(screenshot)
 
-    # Step 3: paste
-    pyautogui.hotkey("ctrl", "v")
-    logger.debug("Pasted from clipboard")
-
-    # Step 4: wait for the image to render in the prompt
+    # Wait for the image to render/upload in the prompt
     time.sleep(config.ENTER_DELAY)
 
-    # Step 5: submit
+    # Submit
     if config.SUBMIT_METHOD == "click_button":
         click_submit_button()
         logger.info("Submitted (clicked send button)")

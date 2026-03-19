@@ -40,9 +40,13 @@ CLICK_DELAY = 0.3
 ENTER_DELAY = 2.0
 
 # Where to click for the INPUT BOX within the paste zone (relative)
-# Gemini's text input bar is near the very bottom of its window
+# Paste zone is (960, 561) to (1920, 1080) on a 1920x1080 screen
+# Gemini's "Ask Gemini" text input is about 75% down in that zone
 PASTE_CLICK_X_RATIO = 0.5
-PASTE_CLICK_Y_RATIO = 0.93
+PASTE_CLICK_Y_RATIO = 0.75
+
+# Paste method: "clipboard" = Ctrl+V, "file_upload" = attach button + file dialog
+PASTE_METHOD = "clipboard"
 
 # Browser window title keywords — used to find and focus the correct window
 # The app searches for any visible window whose title contains one of these
@@ -55,6 +59,10 @@ SUBMIT_METHOD = "click_button"
 # Gemini's blue arrow ">" send button is at the far bottom-right
 SUBMIT_BUTTON_X_RATIO = 0.97
 SUBMIT_BUTTON_Y_RATIO = 0.96
+
+# Where the attach/upload "+" button is within the paste zone
+ATTACH_BUTTON_X_RATIO = 0.03
+ATTACH_BUTTON_Y_RATIO = 0.96
 
 # --- Hotkeys ---
 TOGGLE_HOTKEY = "ctrl+shift+f9"
