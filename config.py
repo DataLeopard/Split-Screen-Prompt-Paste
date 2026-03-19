@@ -23,10 +23,10 @@ POLL_INTERVAL = 0.5
 PIXEL_THRESHOLD = 30
 
 # Percentage of pixels that must differ to trigger capture (0.0-1.0)
-CHANGE_PERCENT = 0.02  # 2% of pixels must change
+CHANGE_PERCENT = 0.08  # 8% of pixels must change (avoids triggering on typing)
 
 # Cooldown after a paste before monitoring resumes (seconds)
-COOLDOWN = 5.0
+COOLDOWN = 8.0
 
 # --- Startup ---
 # Countdown timer (seconds) before monitoring begins after toggle-on
@@ -53,7 +53,7 @@ PASTE_METHOD = "clipboard"
 BROWSER_TITLE_KEYWORDS = ["Gemini", "ChatGPT"]
 
 # Submit method: "enter" = press Enter key, "click_button" = click send button
-SUBMIT_METHOD = "enter"
+SUBMIT_METHOD = "click_button"
 
 # Where the Send/Submit button is within the paste zone (relative)
 # Gemini's blue arrow ">" send button is at the far bottom-right
