@@ -1,7 +1,10 @@
 """Overlay window — always-on-top status display with countdown timer."""
 
+import logging
 import tkinter as tk
 import threading
+
+logger = logging.getLogger(__name__)
 
 
 class StatusOverlay:
@@ -50,17 +53,17 @@ class StatusOverlay:
             try:
                 self._root.after(0, lambda: self._do_update(text, color))
             except Exception:
-                pass
+                logger.debug("Overlay update failed (window may be closing)")
 
     def _do_update(self, text, color):
         try:
             self._label.config(text=text, fg=color)
         except Exception:
-            pass
+            logger.debug("Overlay label update failed (window may be closing)")
 
     def destroy(self):
         if self._root:
             try:
                 self._root.after(0, self._root.destroy)
             except Exception:
-                pass
+                logger.debug("Overlay destroy failed (already closed)")
