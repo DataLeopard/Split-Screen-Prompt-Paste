@@ -46,11 +46,11 @@ PASTE_CLICK_X_RATIO = 0.5
 PASTE_CLICK_Y_RATIO = 0.75
 
 # Paste method: "clipboard" = Ctrl+V, "file_upload" = attach button + file dialog
-PASTE_METHOD = "clipboard"
+PASTE_METHOD = "file_upload"
 
 # Browser window title keywords — used to find and focus the correct window
-# The app searches for any visible window whose title contains one of these
-BROWSER_TITLE_KEYWORDS = ["Gemini", "ChatGPT", "Claude"]
+# IMPORTANT: Don't include "Claude" if Claude Code is open (it would match this app!)
+BROWSER_TITLE_KEYWORDS = ["Gemini", "ChatGPT"]
 
 # Submit method: "enter" = press Enter key, "click_button" = click send button
 SUBMIT_METHOD = "click_button"
