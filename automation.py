@@ -1,8 +1,12 @@
 """Automation module — pastes screenshot into the target prompt and submits."""
 
 import io
+import os
 import time
+import tempfile
 import logging
+import ctypes
+from ctypes import wintypes
 
 import pyautogui
 import win32clipboard
@@ -17,18 +21,33 @@ pyautogui.FAILSAFE = True  # move mouse to corner to abort
 pyautogui.PAUSE = 0.05
 
 
-def copy_image_to_clipboard(image: Image.Image):
-    """Copy a PIL Image to the Windows clipboard as a bitmap."""
-    output = io.BytesIO()
-    image.convert("RGB").save(output, "BMP")
-    bmp_data = output.getvalue()[14:]  # strip BMP file header
-    output.close()
+def copy_image_to_clipboard_png(image: Image.Image):
+    """Copy a PIL Image to the Windows clipboard as PNG data.
+
+    Web apps (Gemini, ChatGPT) prefer PNG over raw BMP for image paste.
+    """
+    # Save as PNG to a bytes buffer
+    png_buf = io.BytesIO()
+    image.convert("RGB").save(png_buf, "PNG")
+    png_data = png_buf.getvalue()
+    png_buf.close()
+
+    # Register the "PNG" clipboard format (web apps look for this)
+    CF_PNG = win32clipboard.RegisterClipboardFormat("PNG")
+
+    # Also prepare BMP as fallback
+    bmp_buf = io.BytesIO()
+    image.convert("RGB").save(bmp_buf, "BMP")
+    bmp_data = bmp_buf.getvalue()[14:]  # strip BMP header
+    bmp_buf.close()
 
     win32clipboard.OpenClipboard()
     win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(CF_PNG, png_data)
     win32clipboard.SetClipboardData(win32clipboard.CF_DIB, bmp_data)
     win32clipboard.CloseClipboard()
-    logger.debug("Image copied to clipboard")
+
+    logger.debug("Image copied to clipboard (PNG + DIB)")
 
 
 def _coords_in_paste_zone(x_ratio, y_ratio):
@@ -56,7 +75,7 @@ def click_submit_button():
 def paste_and_submit(screenshot: Image.Image):
     """
     Full automation sequence:
-    1. Copy screenshot to clipboard
+    1. Copy screenshot to clipboard as PNG
     2. Click the paste target area
     3. Ctrl+V to paste
     4. Wait for image to render, then submit
@@ -64,14 +83,14 @@ def paste_and_submit(screenshot: Image.Image):
     logger.info("Starting paste-and-submit sequence")
 
     # Step 1: copy image to clipboard
-    copy_image_to_clipboard(screenshot)
+    copy_image_to_clipboard_png(screenshot)
 
     # Step 2: click on the prompt area
     time.sleep(config.CLICK_DELAY)
     click_paste_area()
+    time.sleep(0.5)  # let the input field focus
 
     # Step 3: paste
-    time.sleep(config.CLICK_DELAY)
     pyautogui.hotkey("ctrl", "v")
     logger.debug("Pasted from clipboard")
 
@@ -83,7 +102,6 @@ def paste_and_submit(screenshot: Image.Image):
         click_submit_button()
         logger.info("Submitted (clicked send button)")
     else:
-        # Re-click input to ensure focus, then press Enter
         click_paste_area()
         time.sleep(0.3)
         pyautogui.press("enter")
