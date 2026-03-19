@@ -35,16 +35,17 @@ def copy_image_to_clipboard(image: Image.Image):
     image.convert("RGB").save(_SCREENSHOT_PATH, "PNG")
 
     # Use PowerShell + .NET to set clipboard (same as Snipping Tool)
+    # Uses $args[0] to avoid PowerShell injection via file path
     ps_cmd = (
-        f'Add-Type -Assembly System.Windows.Forms; '
-        f'Add-Type -Assembly System.Drawing; '
-        f'$img = [System.Drawing.Image]::FromFile("{_SCREENSHOT_PATH}"); '
-        f'[System.Windows.Forms.Clipboard]::SetImage($img); '
-        f'$img.Dispose()'
+        'Add-Type -Assembly System.Windows.Forms; '
+        'Add-Type -Assembly System.Drawing; '
+        '$img = [System.Drawing.Image]::FromFile($args[0]); '
+        '[System.Windows.Forms.Clipboard]::SetImage($img); '
+        '$img.Dispose()'
     )
 
     result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps_cmd],
+        ["powershell", "-NoProfile", "-Command", ps_cmd, _SCREENSHOT_PATH],
         capture_output=True, text=True, timeout=10
     )
 
@@ -123,32 +124,41 @@ def paste_and_submit(screenshot: Image.Image):
     2. Focus the browser and click the prompt
     3. Ctrl+V to paste the image
     4. Wait, then submit
+
+    Returns True on success, False on failure.
     """
     logger.info("Starting paste-and-submit sequence")
 
-    # Step 1: copy image to clipboard (via PowerShell/.NET)
-    copy_image_to_clipboard(screenshot)
+    try:
+        # Step 1: copy image to clipboard (via PowerShell/.NET)
+        copy_image_to_clipboard(screenshot)
 
-    # Step 2: focus browser and click prompt
-    time.sleep(config.CLICK_DELAY)
-    focus_browser_window()
-    time.sleep(0.3)
-    click_paste_area()
-    time.sleep(0.5)
-
-    # Step 3: Ctrl+V paste
-    pyautogui.hotkey("ctrl", "v")
-    logger.debug("Pressed Ctrl+V")
-
-    # Step 4: wait for image to render
-    time.sleep(config.ENTER_DELAY)
-
-    # Step 5: submit
-    if config.SUBMIT_METHOD == "click_button":
-        click_submit_button()
-        logger.info("Submitted (clicked send button)")
-    else:
-        click_paste_area()
+        # Step 2: focus browser and click prompt
+        time.sleep(config.CLICK_DELAY)
+        if not focus_browser_window():
+            logger.error("Failed to focus browser window")
+            return False
         time.sleep(0.3)
-        pyautogui.press("enter")
-        logger.info("Submitted (Enter pressed)")
+        click_paste_area()
+        time.sleep(0.5)
+
+        # Step 3: Ctrl+V paste
+        pyautogui.hotkey("ctrl", "v")
+        logger.debug("Pressed Ctrl+V")
+
+        # Step 4: wait for image to render
+        time.sleep(config.ENTER_DELAY)
+
+        # Step 5: submit
+        if config.SUBMIT_METHOD == "click_button":
+            click_submit_button()
+            logger.info("Submitted (clicked send button)")
+        else:
+            click_paste_area()
+            time.sleep(0.3)
+            pyautogui.press("enter")
+            logger.info("Submitted (Enter pressed)")
+        return True
+    except Exception as e:
+        logger.error(f"Automation sequence failed: {e}")
+        return False

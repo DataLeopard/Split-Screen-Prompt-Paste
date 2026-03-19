@@ -42,7 +42,11 @@ logger = logging.getLogger("app")
 # ---------------------------------------------------------------------------
 monitoring = threading.Event()
 quitting = threading.Event()
+monitoring_lock = threading.Lock()
 overlay = None
+monitor_thread = None
+toggle_hook = None
+quit_hook = None
 
 
 # ---------------------------------------------------------------------------
@@ -109,29 +113,32 @@ def countdown_and_start():
         time.sleep(1)
 
     if not quitting.is_set():
-        monitoring.set()
-        logger.info("Monitoring ACTIVE")
-        if overlay:
-            overlay.update("SSPP: MONITORING", "#00cc55")
-        update_tray_icon()
+        with monitoring_lock:
+            monitoring.set()
+            logger.info("Monitoring ACTIVE")
+            if overlay:
+                overlay.update("SSPP: MONITORING", "#00cc55")
+            update_tray_icon()
 
 
 def toggle_monitoring():
-    if monitoring.is_set():
-        monitoring.clear()
-        logger.info("Monitoring PAUSED")
-        if overlay:
-            overlay.update("SSPP: PAUSED", "#888888")
-        update_tray_icon()
-    else:
-        # Start countdown in a separate thread so hotkeys stay responsive
-        threading.Thread(target=countdown_and_start, daemon=True).start()
+    with monitoring_lock:
+        if monitoring.is_set():
+            monitoring.clear()
+            logger.info("Monitoring PAUSED")
+            if overlay:
+                overlay.update("SSPP: PAUSED", "#888888")
+            update_tray_icon()
+        else:
+            threading.Thread(target=countdown_and_start, daemon=True).start()
 
 
 def quit_app():
     logger.info("Quit requested")
     monitoring.clear()
     quitting.set()
+    if monitor_thread:
+        monitor_thread.join(timeout=2.0)
     if overlay:
         overlay.update("SSPP: STOPPING...", "#ff3333")
         time.sleep(0.3)
@@ -208,12 +215,13 @@ def main():
     overlay.update("SSPP: PAUSED", "#888888")
 
     # Register global hotkeys
-    keyboard.add_hotkey(config.TOGGLE_HOTKEY, toggle_monitoring, suppress=True)
-    keyboard.add_hotkey(config.QUIT_HOTKEY, quit_app, suppress=True)
+    global toggle_hook, quit_hook, monitor_thread
+    toggle_hook = keyboard.add_hotkey(config.TOGGLE_HOTKEY, toggle_monitoring, suppress=True)
+    quit_hook = keyboard.add_hotkey(config.QUIT_HOTKEY, quit_app, suppress=True)
 
     # Start monitor thread
-    thread = threading.Thread(target=monitor_loop, daemon=True)
-    thread.start()
+    monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
+    monitor_thread.start()
 
     # Build and run system tray (blocks on this thread)
     icon = build_tray()
@@ -229,7 +237,12 @@ def main():
         pass
     finally:
         quit_app()
-        thread.join(timeout=2)
+        if monitor_thread:
+            monitor_thread.join(timeout=2)
+        if toggle_hook:
+            keyboard.remove_hotkey(toggle_hook)
+        if quit_hook:
+            keyboard.remove_hotkey(quit_hook)
         keyboard.unhook_all()
         logger.info("Application stopped.")
 

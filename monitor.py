@@ -58,4 +58,5 @@ def images_differ(img1, img2):
     changed_pixels = np.any(diff > config.PIXEL_THRESHOLD, axis=2)
     change_ratio = np.mean(changed_pixels)
 
+    del arr1, arr2, diff, changed_pixels
     return change_ratio >= config.CHANGE_PERCENT

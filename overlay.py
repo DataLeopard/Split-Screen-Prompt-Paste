@@ -3,6 +3,7 @@
 import logging
 import tkinter as tk
 import threading
+import queue
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class StatusOverlay:
         self._root = None
         self._label = None
         self._ready = threading.Event()
+        self._update_queue = queue.Queue()
         self._thread = threading.Thread(target=self._run_tk, daemon=True)
         self._thread.start()
         self._ready.wait(timeout=5)
@@ -45,21 +47,25 @@ class StatusOverlay:
         self._label.pack(fill="both", expand=True)
 
         self._ready.set()
+        self._root.after(50, self._process_updates)
         self._root.mainloop()
 
     def update(self, text, color="#00cc55"):
-        """Update the overlay text and color. Thread-safe."""
-        if self._root and self._label:
-            try:
-                self._root.after(0, lambda: self._do_update(text, color))
-            except Exception:
-                logger.debug("Overlay update failed (window may be closing)")
-
-    def _do_update(self, text, color):
+        """Update the overlay text and color. Thread-safe via queue."""
         try:
-            self._label.config(text=text, fg=color)
+            self._update_queue.put((text, color))
         except Exception:
-            logger.debug("Overlay label update failed (window may be closing)")
+            logger.debug("Overlay update failed (queue may be closed)")
+
+    def _process_updates(self):
+        try:
+            while not self._update_queue.empty():
+                text, color = self._update_queue.get_nowait()
+                self._label.config(text=text, fg=color)
+        except Exception:
+            logger.debug("Overlay update processing failed")
+        if self._root:
+            self._root.after(50, self._process_updates)
 
     def destroy(self):
         if self._root:
