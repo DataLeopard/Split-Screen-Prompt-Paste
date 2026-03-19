@@ -46,14 +46,14 @@ PASTE_CLICK_X_RATIO = 0.5
 PASTE_CLICK_Y_RATIO = 0.75
 
 # Paste method: "clipboard" = Ctrl+V, "file_upload" = attach button + file dialog
-PASTE_METHOD = "file_upload"
+PASTE_METHOD = "clipboard"
 
 # Browser window title keywords — used to find and focus the correct window
 # IMPORTANT: Don't include "Claude" if Claude Code is open (it would match this app!)
 BROWSER_TITLE_KEYWORDS = ["Gemini", "ChatGPT"]
 
 # Submit method: "enter" = press Enter key, "click_button" = click send button
-SUBMIT_METHOD = "click_button"
+SUBMIT_METHOD = "enter"
 
 # Where the Send/Submit button is within the paste zone (relative)
 # Gemini's blue arrow ">" send button is at the far bottom-right
@@ -70,4 +70,4 @@ QUIT_HOTKEY = "ctrl+shift+f10"
 
 # --- Logging ---
 LOG_FILE = "split_screen.log"
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
