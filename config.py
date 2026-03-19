@@ -44,6 +44,10 @@ ENTER_DELAY = 2.0
 PASTE_CLICK_X_RATIO = 0.5
 PASTE_CLICK_Y_RATIO = 0.93
 
+# Browser window title keywords — used to find and focus the correct window
+# The app searches for any visible window whose title contains one of these
+BROWSER_TITLE_KEYWORDS = ["Gemini", "ChatGPT", "Claude"]
+
 # Submit method: "enter" = press Enter key, "click_button" = click send button
 SUBMIT_METHOD = "click_button"
 
