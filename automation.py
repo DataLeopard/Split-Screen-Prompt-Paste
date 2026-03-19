@@ -31,13 +31,26 @@ def copy_image_to_clipboard(image: Image.Image):
     logger.debug("Image copied to clipboard")
 
 
-def click_paste_area():
-    """Click on the prompt/input area on the paste side of the screen."""
+def _coords_in_paste_zone(x_ratio, y_ratio):
+    """Convert relative ratios to absolute screen coordinates within the paste zone."""
     region = get_paste_region()
-    x = region[0] + int((region[2] - region[0]) * config.PASTE_CLICK_X_RATIO)
-    y = region[1] + int((region[3] - region[1]) * config.PASTE_CLICK_Y_RATIO)
+    x = region[0] + int((region[2] - region[0]) * x_ratio)
+    y = region[1] + int((region[3] - region[1]) * y_ratio)
+    return x, y
+
+
+def click_paste_area():
+    """Click on the prompt/input area in the paste zone."""
+    x, y = _coords_in_paste_zone(config.PASTE_CLICK_X_RATIO, config.PASTE_CLICK_Y_RATIO)
     pyautogui.click(x, y)
     logger.debug(f"Clicked paste area at ({x}, {y})")
+
+
+def click_submit_button():
+    """Click the Send/Submit button in the paste zone."""
+    x, y = _coords_in_paste_zone(config.SUBMIT_BUTTON_X_RATIO, config.SUBMIT_BUTTON_Y_RATIO)
+    pyautogui.click(x, y)
+    logger.debug(f"Clicked submit button at ({x}, {y})")
 
 
 def paste_and_submit(screenshot: Image.Image):
@@ -46,7 +59,7 @@ def paste_and_submit(screenshot: Image.Image):
     1. Copy screenshot to clipboard
     2. Click the paste target area
     3. Ctrl+V to paste
-    4. Enter to submit
+    4. Wait for image to render, then submit
     """
     logger.info("Starting paste-and-submit sequence")
 
@@ -62,7 +75,16 @@ def paste_and_submit(screenshot: Image.Image):
     pyautogui.hotkey("ctrl", "v")
     logger.debug("Pasted from clipboard")
 
-    # Step 4: submit
+    # Step 4: wait for the image to render in the prompt
     time.sleep(config.ENTER_DELAY)
-    pyautogui.press("enter")
-    logger.info("Submitted (Enter pressed)")
+
+    # Step 5: submit
+    if config.SUBMIT_METHOD == "click_button":
+        click_submit_button()
+        logger.info("Submitted (clicked send button)")
+    else:
+        # Re-click input to ensure focus, then press Enter
+        click_paste_area()
+        time.sleep(0.3)
+        pyautogui.press("enter")
+        logger.info("Submitted (Enter pressed)")

@@ -1,6 +1,14 @@
 @echo off
-echo Starting Split Screen Prompt Paste...
-echo   Ctrl+Shift+F9  = Start / Pause monitoring
-echo   Ctrl+Shift+F10 = Quit
+title Split Screen Prompt Paste
+echo ============================================
+echo   Split Screen Prompt Paste
+echo ============================================
 echo.
-pythonw app.py
+echo   Ctrl+Shift+F9  = Start / Pause (with countdown)
+echo   Ctrl+Shift+F10 = Quit
+echo   Move mouse to corner = Emergency stop
+echo.
+echo   Overlay bar appears at top of screen.
+echo ============================================
+echo.
+python app.py

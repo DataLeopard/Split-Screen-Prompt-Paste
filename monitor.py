@@ -24,12 +24,18 @@ def get_monitor_region():
 
 
 def get_paste_region():
-    """Return the (left, top, right, bottom) bounding box for the paste half."""
+    """Return the (left, top, right, bottom) bounding box for the paste zone."""
     screen_w, screen_h = get_screen_size()
 
-    if config.PASTE_SIDE == "right":
+    if config.PASTE_ZONE == "bottom_right":
+        top = int(screen_h * config.PASTE_ZONE_TOP_RATIO)
+        return (screen_w // 2, top, screen_w, screen_h)
+    elif config.PASTE_ZONE == "bottom_left":
+        top = int(screen_h * config.PASTE_ZONE_TOP_RATIO)
+        return (0, top, screen_w // 2, screen_h)
+    elif config.PASTE_ZONE == "right":
         return (screen_w // 2, 0, screen_w, screen_h)
-    else:
+    else:  # "left"
         return (0, 0, screen_w // 2, screen_h)
 
 
